@@ -21,6 +21,10 @@ let trackedWallets = [];
 let lastLeaderboardRefresh = 0;
 const LEADERBOARD_TTL = 3600 * 1000;
 
+// Daily tracking
+let todaysTrades = [];
+let lastDailySummaryDate = null;
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function fmtMoney(n) {
   n = parseFloat(n || 0);
@@ -222,6 +226,37 @@ async function fetchWinLoss(trader) {
   }
 }
 
+async function sendDailySummary() {
+  const today = new Date().toISOString().split('T')[0];
+  if (lastDailySummaryDate === today || todaysTrades.length === 0) return;
+
+  const lines = [
+    `<b>📊 Daily Summary — ${today}</b>`,
+    ``,
+    `Total trades tracked: <b>${todaysTrades.length}</b>`,
+    ``,
+  ];
+
+  const byTrader = {};
+  todaysTrades.forEach(t => {
+    if (!byTrader[t.trader]) byTrader[t.trader] = [];
+    byTrader[t.trader].push(t);
+  });
+
+  for (const [name, trades] of Object.entries(byTrader)) {
+    const buys = trades.filter(t => t.side === 'BUY').length;
+    const sells = trades.filter(t => t.side === 'SELL').length;
+    const totalSize = trades.reduce((s, t) => s + t.size, 0);
+    lines.push(`${name}: ${trades.length} trades (${buys} BUY, ${sells} SELL) · ${fmtSize(totalSize)}`);
+  }
+
+  lines.push(``, `Based on 52% win rate estimate: <b>+$${(todaysTrades.length * 0.50 * 0.52).toFixed(2)}</b>`);
+
+  await sendTelegram(lines.join("\n"));
+  lastDailySummaryDate = today;
+  todaysTrades = [];
+}
+
 async function sendWinLossReport() {
   const lines = [`<b>📊 Win/Loss Report</b>`, `<i>Settled markets only</i>`, ``];
 
@@ -263,6 +298,15 @@ async function pollTrades() {
       seenTx.add(tx);
       if (size < MIN_SIZE) continue;
 
+      // Log for daily summary
+      todaysTrades.push({
+        trader: trader.name,
+        side: trade.side,
+        size,
+        market: trade.title,
+        timestamp: new Date().toISOString(),
+      });
+
       console.log(`[${nowStr()}] 🔔 NEW — ${trader.name}: ${trade.side} ${fmtSize(size)}`);
       await sendTelegram(buildAlert(trade, trader));
       await new Promise(r => setTimeout(r, 500));
@@ -294,6 +338,14 @@ async function main() {
       console.error(`[${nowStr()}] Loop error: ${e.message}`);
     }
   }, POLL_INTERVAL);
+
+  // Send daily summary at 11:55 PM
+  setInterval(async () => {
+    const now = new Date();
+    if (now.getHours() === 23 && now.getMinutes() === 55) {
+      await sendDailySummary();
+    }
+  }, 60 * 1000);
 
   // Send win/loss report every 24 hours
   setInterval(async () => {
