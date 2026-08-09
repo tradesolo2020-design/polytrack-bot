@@ -10,6 +10,13 @@ const POLL_INTERVAL   = parseInt(process.env.POLL_INTERVAL || "120") * 1000;
 const PERIOD          = process.env.LEADERBOARD_PERIOD || "ALL";
 const MIN_SIZE        = parseFloat(process.env.MIN_TRADE_SIZE || "0.50");
 
+const FIXED_WALLETS = [
+  { wallet: "0xb5de863cfef62edecbf1f0e39d0c6acc82df2c54", name: "abc9901" },
+  { wallet: "0x6d20c35f65d9899b6d6b74f8466e824580f9a165", name: "djdjdjekekek" },
+  { wallet: "0x43372356634781eea88d61bbdd7824cdce958882", name: "anjun" },
+  { wallet: "0xfe787d2da716d60e8acff57fb87eb13cd4d10319", name: "ferrariChampions2026" },
+];
+
 const seenTx = new Set();
 let trackedWallets = [];
 let lastLeaderboardRefresh = 0;
@@ -108,7 +115,7 @@ async function sendStartup() {
   const lines = [
     `<b>📡 PolyTrack Bot started</b>`,
     ``,
-    `Top 3 weekly traders (by volume, +PNL only)`,
+    `Tracking 4 custom traders`,
     `Min trade size: <b>${fmtSize(MIN_SIZE)}</b>`,
     ``,
   ];
@@ -123,24 +130,34 @@ async function sendStartup() {
 
 // ── Core ──────────────────────────────────────────────────────────────────────
 async function refreshLeaderboard() {
-  console.log(`[${nowStr()}] Refreshing leaderboard…`);
+  console.log(`[${nowStr()}] Updating trader stats…`);
 
-  // Get top traders by volume in the weekly leaderboard
-  const weekly = await get(`${BASE}/v1/leaderboard?limit=50&orderBy=VOL&timePeriod=WEEK`);
+  // Fetch stats for each fixed wallet
+  trackedWallets = [];
+  for (let i = 0; i < FIXED_WALLETS.length; i++) {
+    const fw = FIXED_WALLETS[i];
+    try {
+      // Try to get stats from leaderboard
+      const board = await get(`${BASE}/v1/leaderboard?limit=1000&orderBy=PNL&timePeriod=ALL`);
+      const found = board.find(t => t.proxyWallet?.toLowerCase() === fw.wallet.toLowerCase());
 
-  // Filter to only positive PNL traders and take top 3
-  const profitableTraders = weekly
-    .filter(t => parseFloat(t.pnl || 0) > 0)
-    .slice(0, 3);
-
-  trackedWallets = profitableTraders
-    .map((t, i) => ({
-      rank:   i + 1,
-      name:   t.userName || t.proxyWallet?.slice(0, 8) + "…",
-      wallet: t.proxyWallet || "",
-      pnl:    parseFloat(t.pnl || 0),
-      vol:    parseFloat(t.vol || 0),
-    }));
+      trackedWallets.push({
+        rank:   i + 1,
+        name:   fw.name,
+        wallet: fw.wallet,
+        pnl:    found ? parseFloat(found.pnl || 0) : 0,
+        vol:    found ? parseFloat(found.vol || 0) : 0,
+      });
+    } catch(e) {
+      trackedWallets.push({
+        rank:   i + 1,
+        name:   fw.name,
+        wallet: fw.wallet,
+        pnl:    0,
+        vol:    0,
+      });
+    }
+  }
 
   for (const w of trackedWallets) {
     console.log(`  ${rankEmoji(w.rank)} ${w.name}  PNL: ${fmtMoney(w.pnl)}  Vol: ${fmtSize(w.vol)}`);
