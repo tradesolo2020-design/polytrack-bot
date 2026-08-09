@@ -10,15 +10,6 @@ const POLL_INTERVAL   = parseInt(process.env.POLL_INTERVAL || "120") * 1000;
 const PERIOD          = process.env.LEADERBOARD_PERIOD || "ALL";
 const MIN_SIZE        = parseFloat(process.env.MIN_TRADE_SIZE || "0.50");
 
-// swisstony is always tracked — active trader with strong history
-const FIXED_WALLET = {
-  wallet: "0x204f72f35326db932158cba6adff0b9a1da95e14",
-  name:   "swisstony",
-  rank:   1,
-  pnl:    0,
-  fixed:  true,
-};
-
 const seenTx = new Set();
 let trackedWallets = [];
 let lastLeaderboardRefresh = 0;
@@ -117,16 +108,11 @@ async function sendStartup() {
   const lines = [
     `<b>📡 PolyTrack Bot started</b>`,
     ``,
+    `Tracking top 3 weekly traders`,
     `Min trade size: <b>${fmtSize(MIN_SIZE)}</b>`,
     ``,
-    `📌 <b>Fixed (All-Time)</b>`,
   ];
-  for (const w of trackedWallets.filter(w => w.fixed)) {
-    lines.push(`${rankEmoji(w.rank)} <b>${w.name}</b>  ${fmtMoney(w.pnl)}`);
-    lines.push(`   <code>${w.wallet}</code>`);
-  }
-  lines.push(``, `📈 <b>Weekly Top 2</b>`);
-  for (const w of trackedWallets.filter(w => !w.fixed)) {
+  for (const w of trackedWallets) {
     lines.push(`${rankEmoji(w.rank)} <b>${w.name}</b>  ${fmtMoney(w.pnl)} this week`);
     lines.push(`   <code>${w.wallet}</code>`);
   }
@@ -138,31 +124,19 @@ async function sendStartup() {
 async function refreshLeaderboard() {
   console.log(`[${nowStr()}] Refreshing leaderboard…`);
 
-  // Always include swisstony — update his current PnL
-  try {
-    const alltime = await get(`${BASE}/v1/leaderboard?limit=10&orderBy=PNL&timePeriod=ALL`);
-    const sw = alltime.find(t => t.proxyWallet === FIXED_WALLET.wallet);
-    if (sw) FIXED_WALLET.pnl = parseFloat(sw.pnl || 0);
-  } catch(e) {}
-
-  // Get top 2 from weekly leaderboard, excluding swisstony
+  // Get top 3 from weekly leaderboard
   const weekly = await get(`${BASE}/v1/leaderboard?limit=10&orderBy=PNL&timePeriod=WEEK`);
-  const top2weekly = weekly
-    .filter(t => t.proxyWallet !== FIXED_WALLET.wallet)
-    .slice(0, 2)
+  trackedWallets = weekly
+    .slice(0, 3)
     .map((t, i) => ({
-      rank:   i + 2,
+      rank:   i + 1,
       name:   t.userName || t.proxyWallet?.slice(0, 8) + "…",
       wallet: t.proxyWallet || "",
       pnl:    parseFloat(t.pnl || 0),
-      weekly: true,
     }));
 
-  trackedWallets = [FIXED_WALLET, ...top2weekly];
-
   for (const w of trackedWallets) {
-    const tag = w.fixed ? "ALL-TIME" : "WEEKLY";
-    console.log(`  ${rankEmoji(w.rank)} ${w.name}  ${fmtMoney(w.pnl)}  [${tag}]`);
+    console.log(`  ${rankEmoji(w.rank)} ${w.name}  ${fmtMoney(w.pnl)}  [WEEKLY]`);
   }
   lastLeaderboardRefresh = Date.now();
 }
