@@ -12,6 +12,8 @@ const MIN_SIZE        = parseFloat(process.env.MIN_TRADE_SIZE || "0.50");
 
 const FIXED_WALLETS = [
   { wallet: "0xfe787d2da716d60e8acff57fb87eb13cd4d10319", name: "ferrariChampions2026" },
+  { wallet: "0xb5de863cfef62edecbf1f0e39d0c6acc82df2c54", name: "abc9901" },
+  { wallet: "0x6d20c35f65d9899b6d6b74f8466e824580f9a165", name: "djdjdjekekek" },
 ];
 
 const seenTx = new Set();
@@ -112,14 +114,13 @@ async function sendStartup() {
   const lines = [
     `<b>📡 PolyTrack Bot started</b>`,
     ``,
-    `Tracking ferrariChampions2026`,
+    `Tracking ${trackedWallets.length} fixed trader(s):`,
     `Min trade size: <b>${fmtSize(MIN_SIZE)}</b>`,
     ``,
   ];
   for (const w of trackedWallets) {
     lines.push(`${rankEmoji(w.rank)} <b>${w.name}</b>`);
-    lines.push(`   P&L: ${fmtMoney(w.pnl)}  ·  Vol: ${fmtSize(w.vol)}`);
-    lines.push(`   <code>${w.wallet}</code>`);
+    lines.push(`<code>${w.wallet}</code>`);
   }
   lines.push(``, `Alerts will fire here when they trade.`);
   await sendTelegram(lines.join("\n"));
@@ -127,37 +128,17 @@ async function sendStartup() {
 
 // ── Core ──────────────────────────────────────────────────────────────────────
 async function refreshLeaderboard() {
-  console.log(`[${nowStr()}] Updating trader stats…`);
+  console.log(`[${nowStr()}] Loading fixed traders…`);
 
-  // Fetch stats for each fixed wallet
-  trackedWallets = [];
-  for (let i = 0; i < FIXED_WALLETS.length; i++) {
-    const fw = FIXED_WALLETS[i];
-    try {
-      // Try to get stats from leaderboard
-      const board = await get(`${BASE}/v1/leaderboard?limit=1000&orderBy=PNL&timePeriod=ALL`);
-      const found = board.find(t => t.proxyWallet?.toLowerCase() === fw.wallet.toLowerCase());
-
-      trackedWallets.push({
-        rank:   i + 1,
-        name:   fw.name,
-        wallet: fw.wallet,
-        pnl:    found ? parseFloat(found.pnl || 0) : 0,
-        vol:    found ? parseFloat(found.vol || 0) : 0,
-      });
-    } catch(e) {
-      trackedWallets.push({
-        rank:   i + 1,
-        name:   fw.name,
-        wallet: fw.wallet,
-        pnl:    0,
-        vol:    0,
-      });
-    }
-  }
+  // Use ONLY the fixed wallets — no leaderboard fetching
+  trackedWallets = FIXED_WALLETS.map((fw, i) => ({
+    rank:   i + 1,
+    name:   fw.name,
+    wallet: fw.wallet,
+  }));
 
   for (const w of trackedWallets) {
-    console.log(`  ${rankEmoji(w.rank)} ${w.name}  PNL: ${fmtMoney(w.pnl)}  Vol: ${fmtSize(w.vol)}`);
+    console.log(`  ${rankEmoji(w.rank)} ${w.name}  ${w.wallet}`);
   }
   lastLeaderboardRefresh = Date.now();
 }
