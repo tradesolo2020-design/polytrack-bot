@@ -108,12 +108,13 @@ async function sendStartup() {
   const lines = [
     `<b>📡 PolyTrack Bot started</b>`,
     ``,
-    `Tracking top 3 weekly traders`,
+    `Top 3 weekly traders (by volume, +PNL only)`,
     `Min trade size: <b>${fmtSize(MIN_SIZE)}</b>`,
     ``,
   ];
   for (const w of trackedWallets) {
-    lines.push(`${rankEmoji(w.rank)} <b>${w.name}</b>  ${fmtMoney(w.pnl)} this week`);
+    lines.push(`${rankEmoji(w.rank)} <b>${w.name}</b>`);
+    lines.push(`   P&L: ${fmtMoney(w.pnl)}  ·  Vol: ${fmtSize(w.vol)}`);
     lines.push(`   <code>${w.wallet}</code>`);
   }
   lines.push(``, `Alerts will fire here when they trade.`);
@@ -124,19 +125,25 @@ async function sendStartup() {
 async function refreshLeaderboard() {
   console.log(`[${nowStr()}] Refreshing leaderboard…`);
 
-  // Get top 3 from weekly leaderboard
-  const weekly = await get(`${BASE}/v1/leaderboard?limit=10&orderBy=PNL&timePeriod=WEEK`);
-  trackedWallets = weekly
-    .slice(0, 3)
+  // Get top traders by volume in the weekly leaderboard
+  const weekly = await get(`${BASE}/v1/leaderboard?limit=50&orderBy=VOL&timePeriod=WEEK`);
+
+  // Filter to only positive PNL traders and take top 3
+  const profitableTraders = weekly
+    .filter(t => parseFloat(t.pnl || 0) > 0)
+    .slice(0, 3);
+
+  trackedWallets = profitableTraders
     .map((t, i) => ({
       rank:   i + 1,
       name:   t.userName || t.proxyWallet?.slice(0, 8) + "…",
       wallet: t.proxyWallet || "",
       pnl:    parseFloat(t.pnl || 0),
+      vol:    parseFloat(t.vol || 0),
     }));
 
   for (const w of trackedWallets) {
-    console.log(`  ${rankEmoji(w.rank)} ${w.name}  ${fmtMoney(w.pnl)}  [WEEKLY]`);
+    console.log(`  ${rankEmoji(w.rank)} ${w.name}  PNL: ${fmtMoney(w.pnl)}  Vol: ${fmtSize(w.vol)}`);
   }
   lastLeaderboardRefresh = Date.now();
 }
