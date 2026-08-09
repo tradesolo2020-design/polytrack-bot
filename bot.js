@@ -11,9 +11,6 @@ const PERIOD          = process.env.LEADERBOARD_PERIOD || "ALL";
 const MIN_SIZE        = parseFloat(process.env.MIN_TRADE_SIZE || "0.50");
 
 const FIXED_WALLETS = [
-  { wallet: "0xb5de863cfef62edecbf1f0e39d0c6acc82df2c54", name: "abc9901" },
-  { wallet: "0x6d20c35f65d9899b6d6b74f8466e824580f9a165", name: "djdjdjekekek" },
-  { wallet: "0x43372356634781eea88d61bbdd7824cdce958882", name: "anjun" },
   { wallet: "0xfe787d2da716d60e8acff57fb87eb13cd4d10319", name: "ferrariChampions2026" },
 ];
 
@@ -115,7 +112,7 @@ async function sendStartup() {
   const lines = [
     `<b>📡 PolyTrack Bot started</b>`,
     ``,
-    `Tracking 4 custom traders`,
+    `Tracking ferrariChampions2026`,
     `Min trade size: <b>${fmtSize(MIN_SIZE)}</b>`,
     ``,
   ];
